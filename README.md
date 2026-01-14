@@ -1,218 +1,181 @@
-# BSOD Analyzer - Windows蓝屏分析工具
+# README - 蓝屏发生了什么？(Blue Screen What Happen)
 
-一个强大的Windows蓝屏(BSOD)转储文件分析工具，帮助你快速定位导致系统崩溃的程序或驱动程序。
+> Windows 蓝屏转储文件分析工具，利用 AI 告诉你为什么会蓝屏
 
-## 功能特性
+一个Vibe Coding项目，帮快速分析 Windows 蓝屏崩溃的根因。
 
-- **智能驱动定位** - 多策略精确定位问题驱动程序
-- **基础分析** - 解析minidump文件，显示蓝屏代码、崩溃原因
-- **历史记录** - SQLite数据库存储并分析多次崩溃
-- **AI辅助诊断** - 集成智谱AI GLM-4.7提供深度技术分析
-- **置信度评估** - 帮助你判断分析结果的可信度
-- **模式识别** - 识别系统性的重复崩溃问题
+---
 
-## 安装
-
-### 从源码安装
+## 快速开始
 
 ```bash
-# 克隆仓库
-git clone https://github.com/yourusername/blue-screen-what-happen.git
-cd blue-screen-what-happen
-
-# 安装依赖
-pip install -r requirements.txt
-
-# 安装工具
+# 安装
 pip install -e .
+
+# 配置 AI 密钥（获取：https://open.bigmodel.cn/usercenter/proj-mgmt/apikeys）
+cp .env.example .env
+# 编辑 .env 填入 ZHIPU_API_KEY
 ```
 
-### 配置AI功能（可选）
+---
 
-复制 `.env.example` 到 `.env` 并配置你的API密钥：
+## 核心命令
+
+### 1️⃣ 自动扫描并分析（推荐）
 
 ```bash
-cp .env.example .env
+# 扫描系统崩溃文件目录，列出所有 dump 文件
+bsod scan
+
+# 扫描并分析最新的崩溃文件
+bsod scan --analyze
+
+# 扫描 + AI 分析 + 保存结果（推荐使用）
+bsod scan -a --ai --save
 ```
 
-编辑 `.env` 文件：
-
-```
-ZHIPU_API_KEY=your_api_key_here
-AI_MODEL=glm-4.7
-```
-
-获取API密钥：https://open.bigmodel.cn/
-
-## 使用方法
-
-### 分析单个dump文件
+### 2️⃣ AI 深度分析（单个文件）
 
 ```bash
 # 基础分析
-bsod analyze dump.dmp
+bsod analyze crash.dmp
 
-# 启用AI分析
-bsod analyze dump.dmp --ai
+# AI 深度分析（推荐）
+bsod analyze crash.dmp --ai
 
-# 保存结果到数据库
-bsod analyze dump.dmp --save
-
-# 输出JSON格式
-bsod analyze dump.dmp -o report.json -f json
+# 分析并保存到数据库
+bsod analyze crash.dmp --ai --save
 ```
 
-### 批量分析
+### 3️⃣ 批量分析
 
 ```bash
-# 分析默认目录（C:/Windows/Minidump）
+# 分析整个目录
 bsod batch "C:/Windows/Minidump"
 
-# 限制文件数量
-bsod batch "./dumps" --limit 5
-
-# 保存所有结果
-bsod batch "./dumps" --save
+# 限制数量 + AI + 保存
+bsod batch "C:/Windows/Minidump" --limit 5 --ai --save
 ```
 
-### 查看历史记录
+### 4️⃣ 查看历史
 
 ```bash
-# 显示最近20条记录
+# 查看最近的崩溃记录
 bsod history
 
-# 显示最近7天的记录
+# 最近 7 天的记录
 bsod history --days 7
 
-# 显示更多记录
-bsod history --limit 50
+# AI 模式分析
+bsod patterns --ai
 ```
 
-### 分析崩溃模式
+### 5️⃣ 其他命令
 
 ```bash
-# 分析最近30天的崩溃模式
-bsod patterns
-
-# 使用AI进行模式分析
-bsod patterns --days 7 --ai
+bsod config          # 查看当前配置
+bsod patterns        # 分析崩溃模式
 ```
 
-### 查看配置
+---
+
+## 扫描路径
+
+`bsod scan` 会自动扫描以下位置：
+
+| 路径 | 说明 |
+|------|------|
+| `C:\Windows\Minidump` | 标准 minidump 位置 |
+| `C:\Windows\MEMORY.DMP` | 完整内存转储 |
+| `C:\Windows\LiveKernelReports` | 实时内核报告 |
+| `~\.bsod_analyzer\dumps\` | 用户目录 |
+
+---
+
+## AI 输出示例
+
+```
+╭─────────────────────────────────────────────────────────────────╮
+│                      AI 深度分析                                │
+╞═══════════════════════════════════════════════════════════════╡
+│                                                                 │
+│  根本原因分析：                                                 │
+│    崩溃由 NVIDIA 显卡驱动 nvlddmkm.sys 在 IRQL 错误级别        │
+│    访问无效内存地址导致。这是典型的驱动程序内存管理错误。       │
+│                                                                 │
+│  修复步骤：                                                     │
+│    1. 打开设备管理器 → 显示适配器 → NVIDIA GeForce              │
+│    2. 右键 → 卸载设备 → 勾选"删除驱动程序软件"                 │
+│    3. 重启后从 NVIDIA 官网下载最新驱动并安装                   │
+│    4. 如果问题依旧，尝试使用 DDU 工具彻底清理驱动              │
+│                                                                 │
+│  验证方法：                                                     │
+│    运行 3-7 天，观察是否再次蓝屏                               │
+│                                                                 │
+│  备选方案：                                                     │
+│    - 暂时使用 Windows Update 提供的驱动版本                    │
+│    - 检查显卡是否超频，恢复默认设置                             │
+│                                                                 │
+╰─────────────────────────────────────────────────────────────────╯
+```
+
+---
+
+## 配置说明
+
+编辑 `.env` 文件：
 
 ```bash
-bsod config
+# 必需：智谱 AI API 密钥
+ZHIPU_API_KEY=your_api_key_here
+
+# 可选：AI 模型（默认 glm-4.7）
+AI_MODEL=glm-4.7
+
+# 可选：数据库路径
+DATABASE_PATH=~/.bsod_analyzer/crashes.db
 ```
 
-## 输出示例
-
-```
-╭─────────────────────────────────────────────────────────────────╮
-│                        基本信息                                 │
-╞═══════════════════════════════════════════════════════════════╡
-│   文件:     C:/Windows/Minidump/011524-12345-01.dmp            │
-│   时间:     2024-01-15 14:32:18                                │
-│   系统:     10.0.22621                                         │
-│   CPU:      AMD64 (8 核心)                                     │
-╰─────────────────────────────────────────────────────────────────╯
-
-┏━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ 崩溃信息  ┃                                                      ┃
-┡━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ 项目      │ 值                                                  │
-├───────────┼────────────────────────────────────────────────────┤
-│ Bugcheck  │ 0xD1                                               │
-│ 名称      │ DRIVER_IRQL_NOT_LESS_OR_EQUAL                      │
-│ 崩溃地址  │ 0xFFFFF80D12345678                                 │
-└───────────┴────────────────────────────────────────────────────┘
-
-╭─────────────────────────────────────────────────────────────────╮
-│                      疑似问题驱动                               │
-╞═══════════════════════════════════════════════════════════════╡
-│   名称:     nvlddmkm.sys                                       │
-│   基地址:   0xFFFFF80012345000                                 │
-│   已知问题: 是                                                  │
-╰─────────────────────────────────────────────────────────────────╯
-
-╭─────────────────────────────────────────────────────────────────╮
-│                       崩溃原因                                  │
-╞═══════════════════════════════════════════════════════════════╡
-│ A driver tried to access a memory address using an invalid     │
-│ IRQL. Known issue: NVIDIA GPU driver - known to cause BSOD     │
-╰─────────────────────────────────────────────────────────────────╯
-
-╭─────────────────────────────────────────────────────────────────╮
-│                       修复建议                                  │
-╞═══════════════════════════════════════════════════════════════╡
-│ 1. Update all device drivers                                   │
-│ 2. Driver-specific: Update to latest NVIDIA driver or          │
-│    perform clean install                                       │
-│ 3. Check Event Viewer for driver errors                        │
-╰─────────────────────────────────────────────────────────────────╯
-
-分析置信度: 85%
-```
+---
 
 ## 项目结构
 
 ```
 bsod_analyzer/
-├── cli/              # CLI命令行接口
-├── core/             # 核心分析引擎
-│   ├── parser.py     # Minidump解析器
-│   ├── analyzer.py   # 分析引擎
-│   ├── driver_detector.py  # 驱动检测器
-│   └── bugcheck_kb.py      # Bugcheck代码知识库
-├── ai/               # AI分析模块
-├── database/         # 数据库管理
-├── utils/            # 工具模块
-└── knowledge/        # 知识库数据
+├── cli/          # 命令行接口
+├── core/         # 解析和分析引擎
+├── ai/           # AI 分析模块
+├── database/     # SQLite 存储
+└── knowledge/    # 驱动问题知识库
 ```
 
-## 支持的Bugcheck代码
+---
 
-工具支持所有常见的Windows bugcheck代码，包括：
+## 支持的崩溃代码
 
 - `0x0A` - IRQL_NOT_LESS_OR_EQUAL
 - `0x3B` - SYSTEM_SERVICE_EXCEPTION
 - `0xD1` - DRIVER_IRQL_NOT_LESS_OR_EQUAL
 - `0x50` - PAGE_FAULT_IN_NONPAGED_AREA
 - `0x124` - WHEA_UNCORRECTABLE_ERROR
-- 以及更多...
+- ……
 
-## 依赖项
+---
+
+## 依赖
 
 - Python 3.10+
-- minidump - Minidump文件解析
-- Click - CLI框架
-- Rich - 终端美化
-- zhipuai - 智谱AI SDK (可选)
+- [minidump](https://github.com/skelsec/minidump) - 转储文件解析
+- [zhipuai](https://github.com/MetaGLM/zhipuai-python) - 智谱 AI
 
-## 开发
+---
 
-```bash
-# 安装开发依赖
-pip install -e ".[dev]"
+## 免责声明
 
-# 运行测试
-pytest
+这是一个Vibe Coding项目，不提供任何保证。AI 分析结果仅供参考，请结合实际情况判断。
 
-# 代码格式化
-black bsod_analyzer/
+---
 
-# 类型检查
-mypy bsod_analyzer/
-```
+## 协议
 
-## 许可证
-
-MIT License
-
-## 贡献
-
-欢迎提交Issue和Pull Request！
-
-## 致谢
-
-- [skelsec/minidump](https://github.com/skelsec/minidump) - Minidump解析库
-- 智谱AI - 提供AI分析能力
+MIT License 
