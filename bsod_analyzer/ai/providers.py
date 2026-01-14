@@ -76,12 +76,12 @@ class ZhipuProvider(IAIProvider):
                 messages=[
                     {
                         "role": "system",
-                        "content": "You are a Windows crash dump analysis expert. Provide clear, technical explanations and actionable recommendations.",
+                        "content": "你是一位 Windows 崩溃转储分析专家。请用中文提供清晰的技术解释和具体的可操作建议。",
                     },
                     {"role": "user", "content": prompt},
                 ],
                 temperature=0.3,
-                max_tokens=2048,
+                max_tokens=8192,
             )
 
             result = response.choices[0].message.content
