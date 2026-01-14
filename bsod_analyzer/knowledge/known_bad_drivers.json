@@ -1,0 +1,82 @@
+{
+  "nvlddmkm.sys": {
+    "issue": "NVIDIA GPU驱动程序 - 某些配置下已知会导致蓝屏",
+    "recommendation": "更新到最新NVIDIA驱动或执行清洁安装"
+  },
+  "amdkmdag.sys": {
+    "issue": "AMD GPU驱动程序 - 可能导致某些硬件崩溃",
+    "recommendation": "更新AMD显卡驱动程序"
+  },
+  "igdkmd64.sys": {
+    "issue": "Intel GPU驱动程序 - 可能导致系统不稳定",
+    "recommendation": "更新Intel显卡驱动程序"
+  },
+  "rtwlanu.sys": {
+    "issue": "Realtek USB WiFi驱动程序 - 已知稳定性问题",
+    "recommendation": "更新Realtek驱动程序或使用其他WiFi适配器"
+  },
+  "netr28x.sys": {
+    "issue": "Ralink网络驱动程序 - 可能导致蓝屏",
+    "recommendation": "更新或更换网络驱动程序"
+  },
+  "avgtdix.sys": {
+    "issue": "AVG杀毒软件驱动程序 - 已知冲突",
+    "recommendation": "更新AVG或暂时禁用以进行测试"
+  },
+  "avghwnda.sys": {
+    "issue": "AVG驱动程序组件",
+    "recommendation": "更新AVG杀毒软件"
+  },
+  "bdss.sys": {
+    "issue": "BitDefender安全驱动程序",
+    "recommendation": "更新BitDefender或检查冲突"
+  },
+  "symefa.sys": {
+    "issue": "Symantec/Norton驱动程序",
+    "recommendation": "更新Norton Security"
+  },
+  "symevent.sys": {
+    "issue": "Symantec事件驱动程序",
+    "recommendation": "更新或移除Symantec产品"
+  },
+  "epfwwfp.sys": {
+    "issue": "ESET防火墙驱动程序",
+    "recommendation": "更新ESET Security"
+  },
+  "iaStorA.sys": {
+    "issue": "Intel RST驱动程序 - 可能导致某些SSD蓝屏",
+    "recommendation": "更新Intel Rapid Storage Technology驱动程序"
+  },
+  "iaStorV.sys": {
+    "issue": "Intel存储驱动程序",
+    "recommendation": "更新Intel RST驱动程序"
+  },
+  "vmm.sys": {
+    "issue": "VirtualBox内存管理器",
+    "recommendation": "更新VirtualBox或在不使用时禁用"
+  },
+  "vboxdrv.sys": {
+    "issue": "VirtualBox驱动程序",
+    "recommendation": "更新VirtualBox"
+  },
+  "vmci.sys": {
+    "issue": "VMware CI驱动程序",
+    "recommendation": "更新VMware Workstation"
+  },
+  "rgl64vk.sys": {
+    "issue": "Razer游戏采集驱动程序",
+    "recommendation": "更新Razer软件"
+  },
+  "Nahimic.sys": {
+    "issue": "Nahimic音频驱动程序 - 已知蓝屏问题",
+    "recommendation": "更新或禁用Nahimic音频服务"
+  },
+  "AiCharger.sys": {
+    "issue": "ASUS AI Charger驱动程序",
+    "recommendation": "更新或移除ASUS AI Suite"
+  },
+  "AsIO.sys": {
+    "issue": "ASUS I/O驱动程序（用于监控）",
+    "recommendation": "更新ASUS软件"
+  }
+}
