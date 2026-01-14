@@ -4,7 +4,7 @@
 
 ## 项目概述
 
-BSOD Analyzer 是一个 Windows 蓝屏崩溃转储分析工具，用于识别系统崩溃的根本原因。它可以解析 Windows minidump 文件，检测问题驱动程序，并提供 AI 驱动的技术分析。
+BSOD Analyzer 是一个 Windows 蓝屏崩溃转储分析工具，用于识别系统崩溃的根本原因。它可以解析 Windows minidump 文件、完整内存转储文件（PAGEDU64），检测问题驱动程序，并提供 AI 驱动的技术分析。
 
 ### 常用开发命令
 
@@ -16,10 +16,13 @@ pip install -r requirements.txt
 pip install -e .
 
 # 运行工具
-bsod analyze crash.dmp
-bsod analyze crash.dmp --ai --save
-bsod batch "C:/Windows/Minidump" --limit 5
-bsod history --days 7
+bsod analyze crash.dmp              # 分析单个文件
+bsod analyze crash.dmp --ai --save # 带 AI 分析并保存
+bsod scan                           # 扫描系统崩溃文件
+bsod scan --analyze                 # 扫描并分析最新崩溃
+bsod scan -a --ai --save           # 扫描、AI 分析并保存
+bsod batch "C:/Windows/Minidump" --limit 5  # 批量分析目录
+bsod history --days 7               # 查看崩溃历史
 
 # 运行测试
 pytest
@@ -33,10 +36,18 @@ mypy bsod_analyzer/
 
 ### 配置
 
-复制 `.env.example` 到 `.env` 并配置：
-- `ZHIPU_API_KEY` - AI 分析所需的密钥（从 https://open.bigmodel.cn/ 获取）
-- `DATABASE_PATH` - SQLite 数据库位置，用于崩溃历史
-- `AI_MODEL` - 使用的模型（默认：`glm-4.7`）
+#### 环境变量配置
+
+通过 Windows 系统环境变量配置（推荐）：
+- `ZHIPU_API_KEY` - AI 分析密钥（从 https://open.bigmodel.cn/ 获取）
+- `DATABASE_PATH` - SQLite 数据库路径
+- `AI_MODEL` - 模型名称（默认：`glm-4.7`）
+
+#### .env 文件配置
+
+或复制 `.env.example` 到 `.env` 并配置。
+
+配置优先级：环境变量 > .env 文件 > 代码默认值
 
 ## 架构
 
@@ -44,11 +55,13 @@ mypy bsod_analyzer/
 
 **`bsod_analyzer/core/`** - 核心分析引擎
 
-- **`parser.py`** - 包含 `IMinidumpParser` 接口和 `create_parser()` 工厂函数。包含使用 `skelsec/minidump` 库的 `MinidumpParser` 类，用于标准 minidump 文件（签名：`MDMP`）。工厂函数自动检测转储格式并返回相应的解析器。
+- **`parser.py`** - 包含 `IMinidumpParser` 接口和 `create_parser()` 工厂函数。`create_parser()` 自动检测转储文件格式并返回相应解析器：
+  - `MDMP` → `MinidumpParser`（标准 minidump）
+  - `PAGEDU64` → `PageDumpParser`（完整内存转储）
 
-- **`pagedump_parser.py`** - `PageDumpParser` 类，用于 Windows 完整内存转储文件（PAGEDU64 格式）。实现 `IMinidumpParser` 接口。可以从转储头提取基本崩溃信息（bugcheck 代码、参数）。限制：由于内核内存遍历的复杂性，未实现驱动列表和堆栈跟踪提取。
+- **`pagedump_parser.py`** - `PageDumpParser` 类，用于 Windows 完整内存转储文件（PAGEDU64 格式）。可从转储头提取崩溃信息（bugcheck 代码、参数）。**限制**：未实现驱动列表和堆栈跟踪提取（需要遍历内核内存结构）。
 
-- **`kernel_dump_parser.py`** - 使用 `kdmp-parser` 库的 `KernelDumpParser` 类。处理内核转储格式。注意：不支持完整内存转储（`PAGEDU64` 签名）——仅支持通过 WinDbg `.dump /f` 创建的 minidump 和内核转储。
+- **`kernel_dump_parser.py`** - `KernelDumpParser` 类，使用 `kdmp-parser` 库处理内核转储格式。
 
 - **`analyzer.py`** - `BSODAnalyzer` 协调完整的分析流程：
   1. 解析 minidump 信息
@@ -80,16 +93,35 @@ mypy bsod_analyzer/
 ### AI 分析 (`bsod_analyzer/ai/`)
 
 - **`providers.py`** - `IAIProvider` 接口和 `AIProviderFactory`，用于创建 AI 提供程序实例
+  - `max_tokens` 设置为 8192，确保响应完整
+  - 系统提示设置为中文，要求提供具体可操作的修复建议
+
 - **`prompts.py`** - `PromptTemplates`，用于生成 AI 提示
+  - 要求 AI 按结构化格式输出：根因分析、技术解释、具体修复步骤、验证方法、备选方案
+  - 要求每个步骤包含 GUI 和命令行两种操作方式
+  - 要求提供完整的注册表路径、命令示例等具体信息
+
 - **`analyzer.py`** - `AIAnalyzer` 封装 AI 提供程序，执行崩溃分析、模式分析和特定驱动程序分析
+
+**AI 输出特点**：
+- 全中文输出
+- 具体可操作的修复步骤
+- 每步包含：目的、具体操作、命令行方式、预期结果
+- 提供验证修复的方法和观察时间
+- 提供备选方案
 
 ### CLI (`bsod_analyzer/cli/main.py`)
 
-基于 Click 的 CLI，包含命令：
-- `bsod analyze <dump>` - 分析单个转储文件
-- `bsod batch <dir>` - 批量分析目录
-- `bsod history` - 查看崩溃历史
-- `bsod patterns` - 分析崩溃模式（带 AI 选项）
+基于 Click 的 CLI，支持 UTF-8 中文输出。包含命令：
+
+| 命令 | 说明 | 示例 |
+|------|------|------|
+| `analyze` | 分析单个转储文件 | `bsod analyze crash.dmp --ai` |
+| `scan` | **自动扫描系统崩溃文件** | `bsod scan --analyze` |
+| `batch` | 批量分析目录 | `bsod batch "C:/Windows/Minidump"` |
+| `history` | 查看崩溃历史 | `bsod history --days 7` |
+| `patterns` | 分析崩溃模式 | `bsod patterns --ai` |
+| `config` | 显示当前配置 | `bsod config` |
 
 ### 数据库 (`bsod_analyzer/database/`)
 
@@ -99,23 +131,47 @@ mypy bsod_analyzer/
 
 ### 转储格式支持
 
-该工具目前支持：
+该工具支持：
 - **Minidump** 文件（签名 `MDMP`），通过 `minidump` 库
 - **完整内存转储** 文件（签名 `PAGEDU64`），通过自定义 `PageDumpParser`
 - **内核转储** 文件，通过 `kdmp-parser` 库（有限支持）
 
 `parser.py` 中的 `create_parser()` 工厂函数通过读取前 8 个字节自动检测格式：
-- `MDMP` → MinidumpParser（标准 minidump 文件）
-- `PAGEDU64` → PageDumpParser（Windows 完整内存转储）
+- `MDMP` → `MinidumpParser`
+- `PAGEDU64` → `PageDumpParser`
 - `PAGEDU48` → 错误（不支持 32 位内核转储）
 
-**关于 PAGEDU64 格式的说明：**
-- `PageDumpParser`（`pagedump_parser.py`）为 PAGEDU64 文件提供基本解析功能
-- 它可以从转储头提取崩溃信息（bugcheck 代码、参数）
-- **限制**：未实现 PAGEDU64 的驱动列表和堆栈跟踪提取
-  - 这些需要遍历内核内存结构（PS_LOADED_MODULE_LIST），这很复杂
-  - 对于 PAGEDU64 文件的完整分析，请使用 WinDbg 或类似工具
-- 当你需要从完整内存转储获取基本崩溃信息（bugcheck 代码、参数）时，使用 PAGEDU64 解析器
+**PAGEDU64 格式限制：**
+- 可提取基本崩溃信息（bugcheck 代码、参数）
+- 未实现驱动列表和堆栈跟踪提取（需要遍历内核内存结构）
+- 对于完整分析，请使用 WinDbg
+
+### 系统崩溃文件扫描
+
+`scan` 命令会自动扫描以下位置：
+
+| 位置 | 说明 |
+|------|------|
+| `C:\Windows\Minidump` | Minidump 文件（默认位置） |
+| `C:\Windows\MEMORY.DMP` | 完整内存转储 |
+| `C:\Windows\LiveKernelReports` | 实时内核崩溃报告 |
+| `~\.bsod_analyzer\dumps\` | 用户配置目录 |
+| 当前工作目录 | 用于开发测试 |
+
+**使用示例**：
+```bash
+# 扫描并列出崩溃文件
+bsod scan
+
+# 扫描并分析最新崩溃
+bsod scan --analyze
+
+# 扫描、AI 分析并保存
+bsod scan -a --ai --save
+
+# 显示所有文件
+bsod scan --all
+```
 
 ### 驱动检测策略
 
