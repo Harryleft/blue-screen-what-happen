@@ -4,10 +4,19 @@ CLI main entry point for BSOD Analyzer.
 Command-line interface for analyzing Windows crash dump files.
 """
 
+import os
 import sys
+
+# 设置 UTF-8 输出编码（Windows 兼容）
+if sys.platform == "win32":
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+
 import click
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
+from datetime import datetime
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
@@ -278,6 +287,221 @@ def config():
 
     console.print(table)
     console.print("\n提示: 通过.env文件或环境变量配置ZHIPU_API_KEY")
+
+
+def find_system_dump_files() -> List[Path]:
+    """查找系统中的所有崩溃转储文件。
+
+    Returns:
+        找到的 dump 文件列表（按修改时间降序排列）
+    """
+    dump_files = []
+
+    # Windows 系统中的常见 dump 文件位置
+    dump_locations = [
+        # Minidump 文件（最常见）
+        Path("C:/Windows/Minidump"),
+        # 完整内存转储
+        Path("C:/Windows"),
+        # 实时内核崩溃报告
+        Path("C:/Windows/LiveKernelReports"),
+        # 用户配置目录中的 dump
+        Path.home() / ".bsod_analyzer" / "dumps",
+        # 当前工作目录（用于开发测试）
+        Path.cwd(),
+    ]
+
+    console.print("[cyan]扫描系统崩溃转储文件...[/cyan]")
+
+    for location in dump_locations:
+        if not location.exists():
+            continue
+
+        console.print(f"  扫描: {location}")
+
+        try:
+            # 查找所有 .dmp 和 .mdmp 文件
+            for pattern in ["*.dmp", "*.DMP", "*.mdmp", "*.MDMP"]:
+                for file_path in location.glob(pattern):
+                    # 跳过目录
+                    if file_path.is_dir():
+                        continue
+                    # 跳过正在使用的文件（大小为0）
+                    if file_path.stat().st_size == 0:
+                        continue
+                    dump_files.append(file_path)
+        except PermissionError:
+            console.print(f"    [yellow]权限不足，跳过[/yellow]")
+        except Exception as e:
+            console.print(f"    [yellow]扫描错误: {e}[/yellow]")
+
+    # 按修改时间降序排序（最新的在前）
+    dump_files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+
+    # 去重（可能在不同目录中找到同一个文件）
+    seen = set()
+    unique_files = []
+    for f in dump_files:
+        # 使用文件路径作为唯一标识
+        file_key = (f.name, f.stat().st_size)
+        if file_key not in seen:
+            seen.add(file_key)
+            unique_files.append(f)
+
+    return unique_files
+
+
+def format_file_size(size_bytes: int) -> str:
+    """格式化文件大小。"""
+    for unit in ["B", "KB", "MB", "GB"]:
+        if size_bytes < 1024.0:
+            return f"{size_bytes:.1f} {unit}"
+        size_bytes /= 1024.0
+    return f"{size_bytes:.1f} TB"
+
+
+@cli.command()
+@click.option("--analyze", "-a", is_flag=True, help="找到文件后自动分析最新的")
+@click.option("--limit", "-n", type=int, default=10, help="最多显示的文件数")
+@click.option("--all", is_flag=True, help="显示所有找到的文件")
+@click.option("--save", is_flag=True, help="自动分析时保存结果到数据库")
+@click.option("--ai", is_flag=True, help="自动分析时启用 AI 分析")
+def scan(analyze: bool, limit: int, all: bool, save: bool, ai: bool):
+    """自动扫描并分析系统崩溃转储文件
+
+    示例:
+        bsod scan                    # 扫描并列出崩溃文件
+        bsod scan --analyze          # 扫描并自动分析最新的崩溃
+        bsod scan -a --ai --save    # 扫描，用 AI 分析最新的并保存
+        bsod scan --all              # 显示所有找到的文件
+    """
+    console.print(Panel.fit(
+        "[bold cyan]系统崩溃转储文件扫描器[/bold cyan]\n"
+        "将扫描以下位置:\n"
+        "- C:\\Windows\\Minidump\n"
+        "- C:\\Windows\\MEMORY.DMP\n"
+        "- C:\\Windows\\LiveKernelReports\n"
+        "- 用户目录下的 dump 文件",
+        border_style="cyan"
+    ))
+
+    # 查找所有 dump 文件
+    dump_files = find_system_dump_files()
+
+    if not dump_files:
+        console.print("\n[yellow]未找到任何崩溃转储文件[/yellow]")
+        console.print("\n提示:")
+        console.print("• 确保系统已发生过蓝屏崩溃")
+        console.print("• 检查是否启用了崩溃转储功能")
+        console.print("• 以管理员身份运行此工具")
+        return
+
+    display_limit = len(dump_files) if all else min(limit, len(dump_files))
+
+    console.print(f"\n[green]找到 {len(dump_files)} 个崩溃转储文件[/green]")
+    console.print(f"显示最新的 {display_limit} 个:\n")
+
+    # 显示文件列表表格
+    table = Table(show_header=True, header_style="bold magenta")
+    table.add_column("#", style="dim", width=3)
+    table.add_column("文件名", style="cyan")
+    table.add_column("大小", justify="right", style="yellow")
+    table.add_column("修改时间", style="green")
+    table.add_column("类型", style="blue")
+
+    for i, file_path in enumerate(dump_files[:display_limit], 1):
+        # 获取文件信息
+        stat = file_path.stat()
+        size_str = format_file_size(stat.st_size)
+
+        # 获取修改时间
+        mtime = datetime.fromtimestamp(stat.st_mtime)
+        time_str = mtime.strftime("%Y-%m-%d %H:%M:%S")
+
+        # 确定文件类型
+        with open(file_path, "rb") as f:
+            signature = f.read(8)
+            if signature[:4] == b"MDMP":
+                file_type = "Minidump"
+            elif signature[:8] == b"PAGEDU64":
+                file_type = "完整内存转储"
+            elif signature[:8] == b"PAGEDU48":
+                file_type = "内核转储(x86)"
+            else:
+                file_type = "未知"
+
+        table.add_row(
+            str(i),
+            file_path.name,
+            size_str,
+            time_str,
+            file_type
+        )
+
+    console.print(table)
+
+    # 如果用户请求自动分析
+    if analyze and dump_files:
+        latest_file = dump_files[0]
+
+        console.print(f"\n[bold]分析最新的崩溃文件:[/bold] [cyan]{latest_file.name}[/cyan]")
+        console.print(f"路径: {latest_file}\n")
+
+        try:
+            # 使用现有的 analyze 逻辑
+            parser = create_parser(str(latest_file))
+            kb = BugcheckKnowledgeBase()
+            driver_detector = DriverDetector()
+            ai_analyzer = None
+
+            # 初始化 AI（如果请求）
+            if ai:
+                config = get_config()
+                if config.zhipu_api_key:
+                    provider = AIProviderFactory.create_from_config(config)
+                    ai_analyzer = AIAnalyzer(provider=provider)
+                else:
+                    console.print("[yellow]警告: ZHIPU_API_KEY未配置，AI分析已禁用[/yellow]")
+
+            # 运行分析
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=console,
+            ) as progress:
+                task = progress.add_task("分析崩溃中...", total=None)
+                analyzer = BSODAnalyzer(parser, kb, driver_detector)
+                result = analyzer.analyze(str(latest_file))
+
+                # AI 分析（如果请求）
+                if ai_analyzer and ai_analyzer.enabled:
+                    progress.update(task, description="AI分析中...")
+                    result.ai_analysis = ai_analyzer.analyze(
+                        crash_info=result.crash_info,
+                        drivers=result.loaded_drivers,
+                        stack_traces=result.stack_traces,
+                        minidump_info=result.minidump_info,
+                        suspected_driver=result.suspected_driver,
+                    )
+
+            # 显示结果
+            console.print()
+            display_analysis_result_rich(result)
+
+            # 保存到数据库（如果请求）
+            if save:
+                db = DatabaseManager()
+                db.save_analysis(result)
+                console.print("\n[green]✓[/green] 分析结果已保存到数据库")
+
+        except Exception as e:
+            console.print(f"\n[red]分析失败: {e}[/red]")
+            import traceback
+            console.print(traceback.format_exc())
+
+    elif not analyze and dump_files:
+        console.print(f"\n提示: 使用 [cyan]--analyze[/cyan] 或 [cyan]-a[/cyan] 选项自动分析最新的崩溃文件")
+        console.print(f"示例: [cyan]bsod scan --analyze[/cyan]")
 
 
 def main():
